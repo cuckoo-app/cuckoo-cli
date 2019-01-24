@@ -2,6 +2,7 @@ import subprocess
 import sys
 import time
 import requests
+import json
 from requests.auth import HTTPBasicAuth
 from pprint import pprint
 
@@ -20,7 +21,14 @@ if __name__ == '__main__':
                       data=payload,
                       auth=HTTPBasicAuth('bryan', 'password'))
     print(r)
-    response = r.json()
+    try:
+        response = r.json()
+    except json.JSONDecodeError as e:
+        payload = {'command': command, 'status': 'ER'}
+        r = requests.post('http://127.0.0.1:8000/api/jobs/',
+                          data=payload,
+                          auth=HTTPBasicAuth('bryan', 'password'))
+        raise e
     pprint(response)
     job_id = response['id']
 
