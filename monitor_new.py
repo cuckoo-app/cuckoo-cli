@@ -1,4 +1,3 @@
-import subprocess
 import sys
 import time
 from datetime import datetime
@@ -7,6 +6,8 @@ import json
 from requests.auth import HTTPBasicAuth
 from pprint import pprint
 import psutil
+import subprocess
+import os
 
 def get_current_times(start_time):
     # Start time in ISO 8601
@@ -33,7 +34,14 @@ if __name__ == '__main__':
 
     machine = 'My Macbook Pro'
 
-    p = psutil.Popen(command.split())
+    my_env = os.environ.copy()
+    my_env['PYTHONUNBUFFERED'] = '1'
+    p = psutil.Popen(command.split(),
+                     env=my_env,
+                     stdout=subprocess.PIPE,
+                     stderr=subprocess.STDOUT,
+                     bufsize=1,
+                     universal_newlines=True)
     print('PID:', p.pid)
 
     start_date = datetime.utcnow().isoformat()
@@ -47,14 +55,37 @@ if __name__ == '__main__':
         'runtime': runtime,
     }
 
-    while p.is_running():
-        print('Still running!', p.poll())
-        payload['status'] = 'running'
-        date_modified, runtime = get_current_times(start_date)
-        payload['runtime'] = runtime
-        payload['dateModified'] = date_modified
-        pprint(payload)
-        time.sleep(update_period)
+    filename = 'test.txt'
+    os.system('rm %s' % filename)
+
+    buffer = ""
+    start = time.time()
+    for line in p.stdout:
+        if time.time() - start >= update_period:
+            print('Buffered!', [buffer])
+            f = open(filename, 'a+')
+            f.write(buffer)
+            f.close()
+            buffer = ""
+            start = time.time()
+        sys.stdout.write(line)
+        buffer += line
+    print('Buffered!', [buffer])
+    f = open(filename, 'a+')
+    f.write(buffer)
+    f.close()
+
+    # while p.is_running():
+    # while p.poll() is None:
+    # for line in p.stdout:
+    #     print(line, end='')
+        # print('Still running!', p.poll())
+        # payload['status'] = 'running'
+        # date_modified, runtime = get_current_times(start_date)
+        # payload['runtime'] = runtime
+        # payload['dateModified'] = date_modified
+        # pprint(payload)
+        # time.sleep(update_period)
     # retcode = p.wait()
     # print('Exit code:', retcode)
     print('Exit code:', p.poll())
