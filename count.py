@@ -9,3 +9,4 @@ if __name__ == '__main__':
     for i in range(n):
         print(i)
         time.sleep(1)
+    # raise Exception('oh')

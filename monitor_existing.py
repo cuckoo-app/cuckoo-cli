@@ -37,7 +37,7 @@ import psutil
 #     #Iterate over the all the running process
 #     for proc in psutil.process_iter():
 #         try:
-#             pinfo = proc.as_dict(attrs=['pid', 'name', 'create_time', 'cmdline', 'status'])
+#             pinfo = proc.as_dict(attrs=['pid', 'name', 'create_time', 'cmdline', 'jobStatus'])
 #             # pinfo = proc.as_dict()
 #             # Check if process name contains the given name string.
 #             if int(pid) == int(pinfo['pid']):
@@ -80,16 +80,17 @@ if __name__ == '__main__':
     date_modified, runtime = get_current_times(start_date)
     payload = {
         'command': ' '.join(p.cmdline()),
-        'status': 'running',
+        'jobStatus': 'running',
         'machine': machine,
         'dateCreated': start_date,
         'dateModified': date_modified,
         'runtime': runtime,
+        'stdout': '',
     }
 
     while p.is_running():
         print('Still running!')
-        payload['status'] = 'running'
+        payload['jobStatus'] = 'running'
         date_modified, runtime = get_current_times(start_date)
         payload['runtime'] = runtime
         payload['dateModified'] = date_modified
@@ -99,7 +100,7 @@ if __name__ == '__main__':
     # print('Exit code:', retcode)
     # print('Exit code:', p.poll())
 
-    payload['status'] = 'success'
+    payload['jobStatus'] = 'finished'
     date_modified, runtime = get_current_times(start_date)
     payload['runtime'] = runtime
     payload['dateModified'] = date_modified
