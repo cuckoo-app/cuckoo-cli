@@ -6,10 +6,14 @@ from pprint import pprint
 import psutil
 import subprocess
 import os
+import errno
 import boto3
+from botocore.client import ClientError
 import warrant
 from warrant.aws_srp import AWSSRP
 import uuid
+
+import config
 
 
 def get_current_times(start_time):
@@ -29,31 +33,39 @@ def get_current_times(start_time):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3:
+    if len(sys.argv) == 4:
         command = sys.argv[1]
         update_period = int(sys.argv[2])
+        stage = sys.argv[3]
     else:
         command = 'python count.py'
         update_period = 2
+        stage = 'dev'
 
     machine = 'My Macbook Pro'
 
     # filename = command.replace(' ', '_') + '-' + str(uuid.uuid4()) + '.txt'
-    filename = str(uuid.uuid4()) + '.txt'
+    cuckoo_dir = '%s/.cuckoo' % os.path.expanduser('~')
+    storage_key = '%s.txt' % str(uuid.uuid4())
+    try:
+        os.makedirs(cuckoo_dir)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+    filename = '%s/%s' % (cuckoo_dir, storage_key)
 
     print('Connecting to server...')
 
     idp_client = boto3.client('cognito-idp')
     identity_client = boto3.client('cognito-identity')
 
-
-    username = 'bryan'
-    password = 'Passw0rd!'
-    region = 'us-east-2'
-    user_pool_id = 'us-east-2_tz3KicE71'
-    app_client_id = '3031326c8q6css5nde2sr0icus'
-    identity_pool_id = 'us-east-2:27b329a5-fd3a-4119-9f50-35c1d19054c4'
-
+    username = config.attr[stage]['username']
+    password = config.attr[stage]['password']
+    region = config.attr[stage]['region']
+    user_pool_id = config.attr[stage]['user_pool_id']
+    app_client_id = config.attr[stage]['app_client_id']
+    identity_pool_id = config.attr[stage]['identity_pool_id']
+    bucket_name = config.attr[stage]['bucket_name']
 
     aws = AWSSRP(username=username,
                  password=password,
@@ -67,9 +79,11 @@ if __name__ == '__main__':
     identity_id = identity_client.get_id(IdentityPoolId=identity_pool_id,
         Logins={'cognito-idp.%s.amazonaws.com/%s' % (region, user_pool_id): id_token})['IdentityId']
 
-    s3 = boto3.resource('s3')
+    # Set up access to AWS resources
     dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('jobs')
+    table = dynamodb.Table('%s-jobs' % stage)
+
+    s3 = boto3.resource('s3')
 
     job_id = str(uuid.uuid4())
     start_date = datetime.utcnow().isoformat()
@@ -83,12 +97,10 @@ if __name__ == '__main__':
         'dateCreated': start_date,
         'dateModified': date_modified,
         'runtime': runtime,
-        'stdout': filename,
+        'stdout': storage_key,
+        'unread': 'true',
     }
-    response = table.put_item(
-        Item=payload
-    )
-    pprint(payload)
+
 
     # ACTUALLY START SUBPROCESS
     my_env = os.environ.copy()
@@ -100,6 +112,15 @@ if __name__ == '__main__':
                      bufsize=1,
                      universal_newlines=True)
     print('Subprocess PID:', p.pid)
+
+    # Send initial information to database and create stdout file
+    response = table.put_item(
+        Item=payload
+    )
+    pprint(payload)
+    f = open(filename, 'a+')
+    f.write('$ %s\n' % (command))
+    f.close()
 
     buffer = ""
     start = time.time()
@@ -114,10 +135,9 @@ if __name__ == '__main__':
             date_modified, runtime = get_current_times(start_date)
             payload['runtime'] = runtime
             payload['dateModified'] = date_modified
-            payload['stdout'] = filename
             s3.meta.client.upload_file(filename,
-                                       'cuckoo-app-uploads',
-                                       'private/%s/%s' % (identity_id, filename))
+                                       bucket_name,
+                                       'private/%s/%s' % (identity_id, storage_key))
             response = table.update_item(
                 Key={
                     'userId': payload['userId'],
@@ -125,12 +145,13 @@ if __name__ == '__main__':
                 },
                 UpdateExpression=("SET dateModified = :dateModified, "
                                   + "jobStatus = :jobStatus, runtime = :runtime, "
-                                  + "stdout = :stdout"),
+                                  + "stdout = :stdout, unread = :unread"),
                 ExpressionAttributeValues={
                   ':dateModified': payload['dateModified'],
                   ':jobStatus': payload['jobStatus'],
                   ':runtime': payload['runtime'],
                   ':stdout': payload['stdout'],
+                  ':unread': payload['unread'],
                 },
                 ReturnValues="ALL_NEW"
             )
@@ -155,8 +176,8 @@ if __name__ == '__main__':
     payload['runtime'] = runtime
     payload['dateModified'] = date_modified
     s3.meta.client.upload_file(filename,
-                               'cuckoo-app-uploads',
-                               'private/%s/%s' % (identity_id, filename))
+                               bucket_name,
+                               'private/%s/%s' % (identity_id, storage_key))
     response = table.update_item(
         Key={
             'userId': payload['userId'],
@@ -164,12 +185,13 @@ if __name__ == '__main__':
         },
         UpdateExpression=("SET dateModified = :dateModified, "
                           + "jobStatus = :jobStatus, runtime = :runtime, "
-                          + "stdout = :stdout"),
+                          + "stdout = :stdout, unread = :unread"),
         ExpressionAttributeValues={
           ':dateModified': payload['dateModified'],
           ':jobStatus': payload['jobStatus'],
           ':runtime': payload['runtime'],
           ':stdout': payload['stdout'],
+          ':unread': payload['unread'],
         },
         ReturnValues="ALL_NEW"
     )
