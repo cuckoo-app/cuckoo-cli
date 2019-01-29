@@ -56,9 +56,6 @@ if __name__ == '__main__':
 
     print('Connecting to server...')
 
-    idp_client = boto3.client('cognito-idp')
-    identity_client = boto3.client('cognito-identity')
-
     username = config.attr[stage]['username']
     password = config.attr[stage]['password']
     region = config.attr[stage]['region']
@@ -66,6 +63,13 @@ if __name__ == '__main__':
     app_client_id = config.attr[stage]['app_client_id']
     identity_pool_id = config.attr[stage]['identity_pool_id']
     bucket_name = config.attr[stage]['bucket_name']
+
+    aws_access_key_id = 'AKIAIOSFODNN7EXAMPLE'
+    aws_secret_access_key = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+
+    idp_client = boto3.client('cognito-idp', region_name=region,
+        aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+    identity_client = boto3.client('cognito-identity', region_name=region)
 
     aws = AWSSRP(username=username,
                  password=password,
@@ -78,12 +82,27 @@ if __name__ == '__main__':
     refresh_token = tokens['AuthenticationResult']['RefreshToken']
     identity_id = identity_client.get_id(IdentityPoolId=identity_pool_id,
         Logins={'cognito-idp.%s.amazonaws.com/%s' % (region, user_pool_id): id_token})['IdentityId']
+    credentials = identity_client.get_credentials_for_identity(IdentityId=identity_id,
+        Logins={'cognito-idp.%s.amazonaws.com/%s' % (region, user_pool_id): id_token})
+    pprint(credentials)
+    access_key_id = credentials['Credentials']['AccessKeyId']
+    secret_key = credentials['Credentials']['SecretKey']
+    session_token = credentials['Credentials']['SessionToken']
+    print(access_token)
 
     # Set up access to AWS resources
-    dynamodb = boto3.resource('dynamodb')
+    dynamodb = boto3.resource('dynamodb',
+        region_name=region,
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_key,
+        aws_session_token=session_token)
     table = dynamodb.Table('%s-jobs' % stage)
 
-    s3 = boto3.resource('s3')
+    s3 = boto3.resource('s3',
+        region_name=region,
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_key,
+        aws_session_token=session_token)
 
     job_id = str(uuid.uuid4())
     start_date = datetime.utcnow().isoformat()
