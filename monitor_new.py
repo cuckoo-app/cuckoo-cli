@@ -117,7 +117,7 @@ if __name__ == '__main__':
         'dateModified': date_modified,
         'runtime': runtime,
         'stdout': storage_key,
-        'unread': 'true',
+        'unread': True,
     }
 
 
