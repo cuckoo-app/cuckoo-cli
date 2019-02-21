@@ -1,7 +1,5 @@
 import sys
 import time
-from datetime import datetime
-import dateutil.parser
 from pprint import pprint
 import psutil
 import subprocess
@@ -17,123 +15,10 @@ import getpass
 
 import config
 
-
-
-
-def get_current_times(start_time):
-    # Start time in ISO 8601
-    now_date = datetime.utcnow().isoformat()
-
-    diff = dateutil.parser.parse(now_date) - dateutil.parser.parse(start_date)
-    # print(diff, type(diff))
-
-    s = diff.total_seconds()
-    hours, remainder = divmod(s, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    runtime = ('{:02}:{:02}:{:02}'
-               .format(int(hours), int(minutes), int(seconds)))
-
-    return now_date, runtime
-
-def send_email(command,
-    job_status,
-    machine,
-    date_modified,
-    runtime,
-    aws_access_key_id,
-    aws_secret_access_key,
-    aws_session_token):
-
-    SENDER = "Cuckoo CL <bbrzycki@berkeley.edu>"
-    RECIPIENT = "bbrzycki@berkeley.edu"
-    REGION="us-east-1"
-    # CONFIGURATION_SET = "ConfigSet"
-
-    # The subject line for the email.
-    SUBJECT = "Your job finished!"
-
-    if job_status == 'success':
-        SUBJECT = 'Your job finished successfully!'
-
-        summary = "Your job '%s' completed at %s (UTC) on machine '%s' with no errors." % (command, date_modified, machine)
-        body = "The job's total runtime was %s (hh:mm:ss)." % (runtime)
-
-        html_summary = "Your job <strong>%s</strong> completed at <strong>%s</strong> (UTC) on machine <strong>%s</strong> with no errors." % (command, date_modified, machine)
-        html_body = "The job's total runtime was <strong>%s</strong> (hh:mm:ss)." % (runtime)
-    elif job_status == 'error':
-        SUBJECT = 'Your job exited with an error'
-
-        summary = "Your job '%s' exited at %s (UTC) on machine '%s' with an error." % (command, date_modified, machine)
-        body = "The job's total runtime was %s (hh:mm:ss)." % (runtime)
-
-        html_summary = "Your job <strong>%s</strong> exited at <strong>%s</strong> (UTC) on machine <strong>%s</strong> with an error." % (command, date_modified, machine)
-        html_body = "The job's total runtime was <strong>%s</strong> (hh:mm:ss)." % (runtime)
-    else:
-        sys.exit('Invalid status: %s' % job_status)
-
-    # The email body for recipients with non-HTML email clients.
-    BODY_TEXT = ("%s\r\n"
-                 "%s\r\n"
-                 "Cuckoo CL"
-                ) % (summary, body)
-
-    # The HTML body of the email.
-    BODY_HTML = """<html>
-    <head></head>
-    <body>
-      <p>%s</p>
-      <p>%s</p>
-      <p>Cuckoo CL</p>
-    </body>
-    </html>
-                """ % (html_summary, html_body)
-
-    # The character encoding for the email.
-    CHARSET = "UTF-8"
-
-    # Create a new SES resource and specify a region.
-    client = boto3.client('ses',
-        region_name=REGION,
-        aws_access_key_id=access_key_id,
-        aws_secret_access_key=secret_key,
-        aws_session_token=session_token)
-
-    # Try to send the email.
-    try:
-        #Provide the contents of the email.
-        response = client.send_email(
-            Destination={
-                'ToAddresses': [
-                    RECIPIENT,
-                ],
-            },
-            Message={
-                'Body': {
-                    'Html': {
-                        'Charset': CHARSET,
-                        'Data': BODY_HTML,
-                    },
-                    'Text': {
-                        'Charset': CHARSET,
-                        'Data': BODY_TEXT,
-                    },
-                },
-                'Subject': {
-                    'Charset': CHARSET,
-                    'Data': SUBJECT,
-                },
-            },
-            Source=SENDER,
-            # If you are not using a configuration set, comment or delete the
-            # following line
-            # ConfigurationSetName=CONFIGURATION_SET,
-        )
-    # Display an error if something goes wrong.
-    except ClientError as e:
-        print(e.response['Error']['Message'])
-    else:
-        print("Email sent! Message ID:"),
-        print(response['MessageId'])
+import auth
+import aws_resources
+import datetime_utils
+import email_notifications
 
 
 if __name__ == '__main__':
@@ -205,24 +90,25 @@ if __name__ == '__main__':
     secret_key = credentials['Credentials']['SecretKey']
     session_token = credentials['Credentials']['SessionToken']
 
+    aws_access_keys = {
+        'aws_access_key_id': access_key_id,
+        'aws_secret_access_key': secret_key,
+        'aws_session_token': session_token,
+    }
 
     # Set up access to AWS resources
-    dynamodb = boto3.resource('dynamodb',
-        region_name=region,
-        aws_access_key_id=access_key_id,
-        aws_secret_access_key=secret_key,
-        aws_session_token=session_token)
+    dynamodb = aws_resources.dynamodb_resource(
+        aws_access_keys
+    )
     table = dynamodb.Table('%s-jobs' % stage)
 
-    s3 = boto3.resource('s3',
-        region_name=region,
-        aws_access_key_id=access_key_id,
-        aws_secret_access_key=secret_key,
-        aws_session_token=session_token)
+    s3 = aws_resources.s3_resource(
+        aws_access_keys
+    )
 
     job_id = str(uuid.uuid4())
-    start_date = datetime.utcnow().isoformat()
-    date_modified, runtime = get_current_times(start_date)
+    start_date = datetime_utils.get_start_date()
+    date_modified, runtime = datetime_utils.get_current_times(start_date)
     payload = {
         'userId': identity_id,
         'jobId': job_id,
@@ -266,7 +152,7 @@ if __name__ == '__main__':
             f.close()
 
             payload['jobStatus'] = 'running'
-            date_modified, runtime = get_current_times(start_date)
+            date_modified, runtime = datetime_utils.get_current_times(start_date)
             payload['runtime'] = runtime
             payload['dateModified'] = date_modified
             pprint(payload)
@@ -286,7 +172,7 @@ if __name__ == '__main__':
         payload['jobStatus'] = 'success'
     else:
         payload['jobStatus'] = 'error'
-    date_modified, runtime = get_current_times(start_date)
+    date_modified, runtime = datetime_utils.get_current_times(start_date)
     payload['runtime'] = runtime
     payload['dateModified'] = date_modified
     s3.meta.client.upload_file(filename,
@@ -316,11 +202,7 @@ if __name__ == '__main__':
     except Exception as e:
         raise e
 
-    send_email(command=payload['command'],
-        job_status=payload['jobStatus'],
-        machine=payload['machine'],
-        date_modified=payload['dateModified'],
-        runtime=payload['runtime'],
-        aws_access_key_id=access_key_id,
-        aws_secret_access_key=secret_key,
-        aws_session_token=session_token)
+    ses_client = aws_resources.ses_client(
+        aws_access_keys
+    )
+    email_notifications.send_completion_email(ses_client, payload)
