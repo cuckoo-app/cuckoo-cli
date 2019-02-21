@@ -18,6 +18,8 @@ import getpass
 import config
 
 
+
+
 def get_current_times(start_time):
     # Start time in ISO 8601
     now_date = datetime.utcnow().isoformat()
@@ -32,6 +34,106 @@ def get_current_times(start_time):
                .format(int(hours), int(minutes), int(seconds)))
 
     return now_date, runtime
+
+def send_email(command,
+    job_status,
+    machine,
+    date_modified,
+    runtime,
+    aws_access_key_id,
+    aws_secret_access_key,
+    aws_session_token):
+
+    SENDER = "Cuckoo CL <bbrzycki@berkeley.edu>"
+    RECIPIENT = "bbrzycki@berkeley.edu"
+    REGION="us-east-1"
+    # CONFIGURATION_SET = "ConfigSet"
+
+    # The subject line for the email.
+    SUBJECT = "Your job finished!"
+
+    if job_status == 'success':
+        SUBJECT = 'Your job finished successfully!'
+
+        summary = "Your job '%s' completed at %s (UTC) on machine '%s' with no errors." % (command, date_modified, machine)
+        body = "The job's total runtime was %s (hh:mm:ss)." % (runtime)
+
+        html_summary = "Your job <strong>%s</strong> completed at <strong>%s</strong> (UTC) on machine <strong>%s</strong> with no errors." % (command, date_modified, machine)
+        html_body = "The job's total runtime was <strong>%s</strong> (hh:mm:ss)." % (runtime)
+    elif job_status == 'error':
+        SUBJECT = 'Your job exited with an error'
+
+        summary = "Your job '%s' exited at %s (UTC) on machine '%s' with an error." % (command, date_modified, machine)
+        body = "The job's total runtime was %s (hh:mm:ss)." % (runtime)
+
+        html_summary = "Your job <strong>%s</strong> exited at <strong>%s</strong> (UTC) on machine <strong>%s</strong> with an error." % (command, date_modified, machine)
+        html_body = "The job's total runtime was <strong>%s</strong> (hh:mm:ss)." % (runtime)
+    else:
+        sys.exit('Invalid status: %s' % job_status)
+
+    # The email body for recipients with non-HTML email clients.
+    BODY_TEXT = ("%s\r\n"
+                 "%s\r\n"
+                 "Cuckoo CL"
+                ) % (summary, body)
+
+    # The HTML body of the email.
+    BODY_HTML = """<html>
+    <head></head>
+    <body>
+      <p>%s</p>
+      <p>%s</p>
+      <p>Cuckoo CL</p>
+    </body>
+    </html>
+                """ % (html_summary, html_body)
+
+    # The character encoding for the email.
+    CHARSET = "UTF-8"
+
+    # Create a new SES resource and specify a region.
+    client = boto3.client('ses',
+        region_name=REGION,
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_key,
+        aws_session_token=session_token)
+
+    # Try to send the email.
+    try:
+        #Provide the contents of the email.
+        response = client.send_email(
+            Destination={
+                'ToAddresses': [
+                    RECIPIENT,
+                ],
+            },
+            Message={
+                'Body': {
+                    'Html': {
+                        'Charset': CHARSET,
+                        'Data': BODY_HTML,
+                    },
+                    'Text': {
+                        'Charset': CHARSET,
+                        'Data': BODY_TEXT,
+                    },
+                },
+                'Subject': {
+                    'Charset': CHARSET,
+                    'Data': SUBJECT,
+                },
+            },
+            Source=SENDER,
+            # If you are not using a configuration set, comment or delete the
+            # following line
+            # ConfigurationSetName=CONFIGURATION_SET,
+        )
+    # Display an error if something goes wrong.
+    except ClientError as e:
+        print(e.response['Error']['Message'])
+    else:
+        print("Email sent! Message ID:"),
+        print(response['MessageId'])
 
 
 if __name__ == '__main__':
@@ -213,3 +315,12 @@ if __name__ == '__main__':
         subprocess.call(['rm', filename])
     except Exception as e:
         raise e
+
+    send_email(command=payload['command'],
+        job_status=payload['jobStatus'],
+        machine=payload['machine'],
+        date_modified=payload['dateModified'],
+        runtime=payload['runtime'],
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_key,
+        aws_session_token=session_token)
