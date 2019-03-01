@@ -11,6 +11,7 @@ CHARSET = "UTF-8"
 
 # CONFIGURATION_SET = "ConfigSet"
 
+
 def send_email(ses_client,
                subject,
                body_text,

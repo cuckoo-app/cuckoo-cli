@@ -5,8 +5,6 @@ import psutil
 import subprocess
 import os
 import errno
-import boto3
-from botocore.client import ClientError
 import warrant
 from warrant.aws_srp import AWSSRP
 import uuid
@@ -22,79 +20,42 @@ import email_notifications
 
 
 if __name__ == '__main__':
-    # filename = command.replace(' ', '_') + '-' + str(uuid.uuid4()) + '.txt'
     cuckoo_dir = '%s/.cuckoo' % os.path.expanduser('~')
-    storage_key = '%s.txt' % str(uuid.uuid4())
     try:
         os.makedirs(cuckoo_dir)
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
 
-    try:
-        with open('%s/config.json' % cuckoo_dir, 'r') as f:
-            cuckoo_config = json.load(f)
-            username = cuckoo_config['username']
-            password = cuckoo_config['password']
-            machine = cuckoo_config['machine']
-    except FileNotFoundError:
-        print('No configuration file found.')
-        username = input('Username: ')
-        password = getpass.getpass('Password: ')
-        machine = input('Enter a custom label for this machine: ')
-        cuckoo_config = {
-            'username': username,
-            'password': password,
-            'machine': machine,
-        }
-        with open('%s/config.json' % cuckoo_dir, 'w') as f:
-            json.dump(cuckoo_config, f)
+    # Key for storing stdout text to file
+    stdout_key = '%s.txt' % str(uuid.uuid4())
+    stdout_filename = '%s/%s' % (cuckoo_dir, stdout_key)
 
     command = sys.argv[1]
     stage = sys.argv[2]
 
     update_period = 2
 
-    filename = '%s/%s' % (cuckoo_dir, storage_key)
-
     print('Connecting to server...')
 
+    # Grab resource keys from config
     region = config.attr[stage]['region']
     user_pool_id = config.attr[stage]['user_pool_id']
     app_client_id = config.attr[stage]['app_client_id']
     identity_pool_id = config.attr[stage]['identity_pool_id']
     bucket_name = config.attr[stage]['bucket_name']
 
-    aws_access_key_id = 'AKIAIOSFODNN7EXAMPLE'
-    aws_secret_access_key = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
-
-    idp_client = boto3.client('cognito-idp', region_name=region,
-        aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
-    identity_client = boto3.client('cognito-identity', region_name=region)
-
-    aws = AWSSRP(username=username,
-                 password=password,
-                 pool_id=user_pool_id,
-                 client_id=app_client_id,
-                 client=idp_client)
-    tokens = aws.authenticate_user()
-    access_token = tokens['AuthenticationResult']['AccessToken']
-    id_token = tokens['AuthenticationResult']['IdToken']
-    refresh_token = tokens['AuthenticationResult']['RefreshToken']
-    identity_id = identity_client.get_id(IdentityPoolId=identity_pool_id,
-        Logins={'cognito-idp.%s.amazonaws.com/%s' % (region, user_pool_id): id_token})['IdentityId']
-    credentials = identity_client.get_credentials_for_identity(IdentityId=identity_id,
-        Logins={'cognito-idp.%s.amazonaws.com/%s' % (region, user_pool_id): id_token})
-
-    access_key_id = credentials['Credentials']['AccessKeyId']
-    secret_key = credentials['Credentials']['SecretKey']
-    session_token = credentials['Credentials']['SessionToken']
-
-    aws_access_keys = {
-        'aws_access_key_id': access_key_id,
-        'aws_secret_access_key': secret_key,
-        'aws_session_token': session_token,
-    }
+    # Handles login and gets aws access keys
+    user_keys = auth.login(
+         region=region,
+         user_pool_id=user_pool_id,
+         app_client_id=app_client_id,
+         identity_pool_id=identity_pool_id
+    )
+    username = user_keys['username']
+    machine = user_keys['machine']
+    aws_access_keys = user_keys['aws_access_keys']
+    identity_id = user_keys['identity_id']
 
     # Set up access to AWS resources
     dynamodb = aws_resources.dynamodb_resource(
@@ -118,7 +79,7 @@ if __name__ == '__main__':
         'dateCreated': start_date,
         'dateModified': date_modified,
         'runtime': runtime,
-        'stdout': storage_key,
+        'stdout': stdout_key,
         'unread': True,
     }
 
@@ -138,7 +99,7 @@ if __name__ == '__main__':
         Item=payload
     )
     pprint(payload)
-    f = open(filename, 'a+')
+    f = open(stdout_filename, 'a+')
     f.write('$ %s\n' % (command))
     f.close()
 
@@ -147,7 +108,7 @@ if __name__ == '__main__':
     for line in p.stdout:
         if time.time() - start >= update_period:
             print('Buffered! (Not sent)', [buffer])
-            f = open(filename, 'a+')
+            f = open(stdout_filename, 'a+')
             f.write(buffer)
             f.close()
 
@@ -162,7 +123,7 @@ if __name__ == '__main__':
         sys.stdout.write(line)
         buffer += line
     print('Buffered!', [buffer])
-    f = open(filename, 'a+')
+    f = open(stdout_filename, 'a+')
     f.write(buffer)
     f.close()
 
@@ -175,9 +136,9 @@ if __name__ == '__main__':
     date_modified, runtime = datetime_utils.get_current_times(start_date)
     payload['runtime'] = runtime
     payload['dateModified'] = date_modified
-    s3.meta.client.upload_file(filename,
+    s3.meta.client.upload_file(stdout_filename,
                                bucket_name,
-                               'private/%s/%s' % (identity_id, storage_key))
+                               'private/%s/%s' % (identity_id, stdout_key))
     response = table.update_item(
         Key={
             'userId': payload['userId'],
@@ -198,7 +159,7 @@ if __name__ == '__main__':
     pprint(payload)
 
     try:
-        subprocess.call(['rm', filename])
+        subprocess.call(['rm', stdout_filename])
     except Exception as e:
         raise e
 

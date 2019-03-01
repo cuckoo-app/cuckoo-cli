@@ -3,10 +3,13 @@ import dateutil.parser
 
 
 def get_start_date():
+    """Return start date in ISO 8601 format"""
     return datetime.utcnow().isoformat()
 
 
 def get_current_times(start_date):
+    """Return current date in ISO 8601 format, as well as runtime calculated
+    from the starting date"""
     # Start time in ISO 8601
     now_date = datetime.utcnow().isoformat()
 
