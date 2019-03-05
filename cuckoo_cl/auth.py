@@ -9,9 +9,9 @@ import aws_resources
 import config
 
 
-CUCKOO_DIR = '%s/.cuckoo' % os.path.expanduser('~')
-USER_CONFIG = '%s/config.json' % CUCKOO_DIR
-STAGE = 'dev'
+CUCKOO_DIR = config.cuckoo_dir
+USER_CONFIG = config.user_config
+STAGE = config.stage
 
 
 def get_user_config():
@@ -100,10 +100,11 @@ def get_aws_credentials(user_tokens,
     }
 
 
-def interactive_login(region=config.attr['dev']['region'],
-                      user_pool_id=config.attr['dev']['user_pool_id'],
-                      app_client_id=config.attr['dev']['app_client_id'],
-                      identity_pool_id=config.attr['dev']['identity_pool_id']):
+def interactive_login(region=config.attr[STAGE]['region'],
+                      user_pool_id=config.attr[STAGE]['user_pool_id'],
+                      app_client_id=config.attr[STAGE]['app_client_id'],
+                      identity_pool_id=config.attr[STAGE]['identity_pool_id'],
+                      bucket_name=config.attr[STAGE]['bucket_name']):
     """Handle login from user input and returns account keys"""
     user_config = get_user_config()
     if user_config:
@@ -122,6 +123,7 @@ def interactive_login(region=config.attr['dev']['region'],
                                                   identity_pool_id)
             aws_credentials['username'] = username
             aws_credentials['machine'] = machine
+            aws_credentials['bucket_name'] = bucket_name
             return aws_credentials
         else:
             # Login failed; either incorrect login or
@@ -155,6 +157,7 @@ def interactive_login(region=config.attr['dev']['region'],
                                                   identity_pool_id)
             aws_credentials['username'] = username
             aws_credentials['machine'] = machine
+            aws_credentials['bucket_name'] = bucket_name
             print('Successful login!')
             return aws_credentials
         else:
