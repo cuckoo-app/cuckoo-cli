@@ -14,21 +14,6 @@ USER_CONFIG = '%s/config.json' % CUCKOO_DIR
 STAGE = 'dev'
 
 
-# def login(username,
-#           password,
-#           region=config.attr['dev']['region'],
-          # user_pool_id=config.attr[stage]['user_pool_id'],
-          # app_client_id=config.attr[stage]['app_client_id'],
-          # identity_pool_id=config.attr[stage]['identity_pool_id']):
-#     try:
-#         login_with_credentials(username,
-#                                password,
-#                                region,
-#                                user_pool_id,
-#                                app_client_id,
-#                                identity_pool_id)
-#     except
-
 def get_user_config():
     '''
     Get username config if file exists, else return None.
@@ -139,7 +124,8 @@ def interactive_login(region=config.attr['dev']['region'],
             aws_credentials['machine'] = machine
             return aws_credentials
         else:
-            # Login failed; either incorrect login or incorrectly formatted file
+            # Login failed; either incorrect login or
+            # incorrectly formatted config file
             pass
 
     # Bad credentials - prompt login!
