@@ -9,25 +9,87 @@ import aws_resources
 import config
 
 
-def login_with_credentials(username,
-                           password,
-                           region,
-                           user_pool_id,
-                           app_client_id,
-                           identity_pool_id):
-    """Get account keys from login credentials"""
-    idp_client = aws_resources.idp_client()
-    identity_client = aws_resources.identity_client()
+CUCKOO_DIR = '%s/.cuckoo' % os.path.expanduser('~')
+USER_CONFIG = '%s/config.json' % CUCKOO_DIR
+STAGE = 'dev'
 
+
+# def login(username,
+#           password,
+#           region=config.attr['dev']['region'],
+          # user_pool_id=config.attr[stage]['user_pool_id'],
+          # app_client_id=config.attr[stage]['app_client_id'],
+          # identity_pool_id=config.attr[stage]['identity_pool_id']):
+#     try:
+#         login_with_credentials(username,
+#                                password,
+#                                region,
+#                                user_pool_id,
+#                                app_client_id,
+#                                identity_pool_id)
+#     except
+
+def get_user_config():
+    '''
+    Get username config if file exists, else return None.
+    '''
+    try:
+        with open(USER_CONFIG, 'r') as f:
+            cuckoo_config = json.load(f)
+            return cuckoo_config
+    except FileNotFoundError:
+        return None
+    except KeyError:
+        return None
+
+
+def set_user_config(cuckoo_config):
+    # cuckoo_config = {
+    #     'username': username,
+    #     'password': password,
+    #     'machine': machine,
+    # }
+    with open(USER_CONFIG, 'w') as f:
+        json.dump(cuckoo_config, f)
+
+
+def check_login_credentials(username,
+                            password,
+                            user_pool_id=config.attr[STAGE]['user_pool_id'],
+                            app_client_id=config.attr[STAGE]['app_client_id']):
+    '''
+    On success, returns tokens, otherwise return None.
+    '''
+    idp_client = aws_resources.idp_client()
     aws = AWSSRP(username=username,
                  password=password,
                  pool_id=user_pool_id,
                  client_id=app_client_id,
                  client=idp_client)
-    tokens = aws.authenticate_user()
-    access_token = tokens['AuthenticationResult']['AccessToken']
-    id_token = tokens['AuthenticationResult']['IdToken']
-    refresh_token = tokens['AuthenticationResult']['RefreshToken']
+    try:
+        user_tokens = aws.authenticate_user()
+        return user_tokens
+    except ClientError as e:
+        if e.__class__.__name__ in ['NotAuthorizedException',
+                                    'UserNotFoundException']:
+            return None
+        else:
+            raise e
+
+
+def get_aws_credentials(user_tokens,
+                        region,
+                        user_pool_id=config.attr[STAGE]['user_pool_id'],
+                        identity_pool_id=config.attr[STAGE]['identity_pool_id']):
+    """
+    Get account keys from login credentials
+
+    user_tokens come from check_login_credentials method
+    """
+    identity_client = aws_resources.identity_client()
+    access_token = user_tokens['AuthenticationResult']['AccessToken']
+    id_token = user_tokens['AuthenticationResult']['IdToken']
+    refresh_token = user_tokens['AuthenticationResult']['RefreshToken']
 
     identity_id = identity_client.get_id(IdentityPoolId=identity_pool_id,
         Logins={'cognito-idp.%s.amazonaws.com/%s' % (region, user_pool_id): id_token})['IdentityId']
@@ -53,89 +115,64 @@ def login_with_credentials(username,
     }
 
 
-# def login(username,
-#           password,
-#           region=config.attr['dev']['region'],
-#           user_pool_id=config.attr[stage]['user_pool_id'],
-#           app_client_id=config.attr[stage]['app_client_id'],
-#           identity_pool_id=config.attr[stage]['identity_pool_id']):
-#     try:
-#         login_with_credentials(username,
-#                                password,
-#                                region,
-#                                user_pool_id,
-#                                app_client_id,
-#                                identity_pool_id)
-#     except
-
-
-def dynamic_login(region=config.attr['dev']['region'],
-                  user_pool_id=config.attr[stage]['user_pool_id'],
-                  app_client_id=config.attr[stage]['app_client_id'],
-                  identity_pool_id=config.attr[stage]['identity_pool_id']):
+def interactive_login(region=config.attr['dev']['region'],
+                      user_pool_id=config.attr['dev']['user_pool_id'],
+                      app_client_id=config.attr['dev']['app_client_id'],
+                      identity_pool_id=config.attr['dev']['identity_pool_id']):
     """Handle login from user input and returns account keys"""
-    cuckoo_dir = '%s/.cuckoo' % os.path.expanduser('~')
-    try:
-        try:
-            with open('%s/config.json' % cuckoo_dir, 'r') as f:
-                cuckoo_config = json.load(f)
-                username = cuckoo_config['username']
-                password = cuckoo_config['password']
-                machine = cuckoo_config['machine']
-            user_keys = login_with_credentials(username,
-                                               password,
-                                               region,
-                                               user_pool_id,
-                                               app_client_id,
-                                               identity_pool_id)
-        except FileNotFoundError:
-            print('No configuration file found.')
-            username = input('Username: ')
-            password = getpass.getpass('Password: ')
+    user_config = get_user_config()
+    if user_config:
+        # Config file already exists
+        username = user_config['username']
+        password = user_config['password']
+        machine = user_config['machine']
+        user_tokens = check_login_credentials(username,
+                                              password,
+                                              user_pool_id,
+                                              app_client_id)
+        if user_tokens:
+            aws_credentials = get_aws_credentials(user_tokens,
+                                                  region,
+                                                  user_pool_id,
+                                                  identity_pool_id)
+            aws_credentials['username'] = username
+            aws_credentials['machine'] = machine
+            return aws_credentials
+        else:
+            # Login failed; either incorrect login or incorrectly formatted file
+            pass
+
+    # Bad credentials - prompt login!
+    attempt = 0
+    while attempt < 3:
+        if attempt == 0:
+            print('Please log in.')
+        else:
+            print('Incorrect credentials. Please try again.')
+        username = input('Username: ')
+        password = getpass.getpass('Password: ')
+        user_tokens = check_login_credentials(username,
+                                              password,
+                                              user_pool_id,
+                                              app_client_id)
+        if user_tokens:
             machine = input('Enter a custom label for this machine: ')
             cuckoo_config = {
                 'username': username,
                 'password': password,
                 'machine': machine,
             }
-            with open('%s/config.json' % cuckoo_dir, 'w') as f:
-                json.dump(cuckoo_config, f)
-            user_keys = login_with_credentials(username,
-                                               password,
-                                               region,
-                                               user_pool_id,
-                                               app_client_id,
-                                               identity_pool_id)
-    except ClientError as e:
-        if 'NotAuthorizedException' == e.__class__.__name__:
-            attempts = 3
-            while attempts > 0:
-                print('Incorrect username or password. Please try again.')
-                with open('%s/config.json' % cuckoo_dir, 'r') as f:
-                    cuckoo_config = json.load(f)
-                cuckoo_config['username'] = username = input('Username: ')
-                cuckoo_config['password'] = password = getpass.getpass('Password: ')
-                with open('%s/config.json' % cuckoo_dir, 'w') as f:
-                    json.dump(cuckoo_config, f)
-                try:
-                    user_keys = login_with_credentials(username,
-                                                       password,
-                                                       region,
-                                                       user_pool_id,
-                                                       app_client_id,
-                                                       identity_pool_id)
-                    break
-                except ClientError as e:
-                    if 'NotAuthorizedException' == e.__class__.__name__:
-                        attempts -= 1
-                    else:
-                        raise e
-            print('Incorrect username or password. Please make sure you are using the correct login credentials, or reset your password.')
-            sys.exit(0)
+            set_user_config(cuckoo_config)
+            aws_credentials = get_aws_credentials(user_tokens,
+                                                  region,
+                                                  user_pool_id,
+                                                  identity_pool_id)
+            aws_credentials['username'] = username
+            aws_credentials['machine'] = machine
+            print('Successful login!')
+            return aws_credentials
         else:
-            raise e
-    finally:
-        user_keys['username'] = username
-        user_keys['machine'] = machine
-
-    return user_keys
+            attempt += 1
+    print('Login attempt failed 3 times. Please make sure you have the '
+          + 'correct username and password!')
+    sys.exit(1)

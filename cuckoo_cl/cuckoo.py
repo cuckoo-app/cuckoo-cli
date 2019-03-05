@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 import time
 from pprint import pprint
@@ -5,11 +7,9 @@ import psutil
 import subprocess
 import os
 import errno
-import warrant
-from warrant.aws_srp import AWSSRP
 import uuid
-import json
-import getpass
+
+import argparse
 
 import config
 
@@ -17,9 +17,10 @@ import auth
 import aws_resources
 import datetime_utils
 import email_notifications
+import track
 
 
-if __name__ == '__main__':
+def main():
     cuckoo_dir = '%s/.cuckoo' % os.path.expanduser('~')
     try:
         os.makedirs(cuckoo_dir)
@@ -167,3 +168,49 @@ if __name__ == '__main__':
         aws_access_keys
     )
     email_notifications.send_completion_email(ses_client, payload)
+
+
+if __name__ == '__main__':
+    # Log in if user config isn't saved
+    aws_credentials = auth.interactive_login(
+        region=config.attr['dev']['region'],
+        user_pool_id=config.attr['dev']['user_pool_id'],
+        app_client_id=config.attr['dev']['app_client_id'],
+        identity_pool_id=config.attr['dev']['identity_pool_id']
+    )
+
+    parser = argparse.ArgumentParser(description='Track completion of your jobs!')
+    parser.add_argument(
+        '-c',
+        '--command',
+        '-n',
+        '--new',
+        nargs='+',
+        help='Full command to track',
+    )
+    # May potentially support multiple processes
+    parser.add_argument(
+        '-a',
+        '--attach',
+        '-e',
+        '--existing',
+        nargs=1,
+        type=int,
+        help='PID of existing job to track',
+    )
+
+    args = parser.parse_args()
+
+    if args.command and args.attach:
+        parser.error('Please specify only one command or process to track.')
+    elif args.command is None and args.attach is None:
+        pass
+    elif args.command:
+        joined_command = ' '.join(args.command)
+        print(joined_command)
+        track.track_new(joined_command, aws_credentials)
+    elif args.attach:
+        print(args.attach)
+        track.track_existing(args.attach, aws_credentials)
+    else:
+        parser.error('Something went wrong!')
