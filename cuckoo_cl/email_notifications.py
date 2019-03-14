@@ -80,6 +80,14 @@ def send_completion_email(ses_client,
 
         html_summary = "Your job <strong>%s</strong> exited at <strong>%s</strong> (UTC) on machine <strong>%s</strong> with an error." % (command, date_modified, machine)
         html_body = "The job's total runtime was <strong>%s</strong> (hh:mm:ss)." % (runtime)
+    elif job_status == 'finished':
+        subject = 'Your job has finished!'
+
+        summary = "Your job '%s' finished at %s (UTC) on machine '%s'." % (command, date_modified, machine)
+        body = "The job's total runtime was %s (hh:mm:ss)." % (runtime)
+
+        html_summary = "Your job <strong>%s</strong> finished at <strong>%s</strong> (UTC) on machine <strong>%s</strong>." % (command, date_modified, machine)
+        html_body = "The job's total runtime was <strong>%s</strong> (hh:mm:ss)." % (runtime)
     else:
         sys.exit('Invalid status: %s' % job_status)
 

@@ -2,9 +2,12 @@ from datetime import datetime
 import dateutil.parser
 
 
-def get_start_date():
+def get_start_date(timestamp=None):
     """Return start date in ISO 8601 format"""
-    return datetime.utcnow().isoformat()
+    if timestamp:
+        return datetime.utcfromtimestamp(timestamp).isoformat()
+    else:
+        return datetime.utcnow().isoformat()
 
 
 def get_current_times(start_date):

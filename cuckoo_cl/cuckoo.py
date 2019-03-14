@@ -23,6 +23,9 @@ if __name__ == '__main__':
         bucket_name=bucket_name,
     )
 
+    import pprint
+    pprint.pprint(aws_credentials)
+
     parser = argparse.ArgumentParser(
         description='Track completion of your jobs!'
     )
@@ -58,6 +61,6 @@ if __name__ == '__main__':
                         send_email=True)
     elif args.pid:
         print(args.pid)
-        track.track_existing(args.pid, aws_credentials)
+        track.track_existing(args.pid[0], aws_credentials)
     else:
         parser.error('Something went wrong!')

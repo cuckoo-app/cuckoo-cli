@@ -1,5 +1,6 @@
 import sys
 import time
+from datetime import datetime
 from pprint import pprint
 import psutil
 import subprocess
@@ -160,6 +161,86 @@ def track_new(command,
         email_notifications.send_completion_email(ses_client, payload)
 
 
-def track_existing(pid, aws_credentials):
-    # TODO
-    pass
+def track_existing(pid,
+                   aws_credentials,
+                   store_db=True,
+                   send_email=True):
+    # Does not support stdout tracking
+    stdout_key = None
+    update_period = 2
+
+    # Set up access to AWS resources
+    aws_access_keys = aws_credentials['aws_access_keys']
+    if store_db:
+        dynamodb = aws_resources.dynamodb_resource(
+            aws_access_keys
+        )
+        table = dynamodb.Table('%s-jobs' % STAGE)
+
+    # Create process based on PID and grab relevant information
+    p = psutil.Process(pid)
+    job_id = str(uuid.uuid4())
+    command = ' '.join(p.cmdline())
+    start_date = datetime_utils.get_start_date(p.create_time())
+    date_modified, runtime = datetime_utils.get_current_times(start_date)
+    payload = {
+        'userId': aws_credentials['identity_id'],
+        'jobId': job_id,
+        'command': command,
+        'jobStatus': 'running',
+        'machine': aws_credentials['machine'],
+        'dateCreated': start_date,
+        'dateModified': date_modified,
+        'runtime': runtime,
+        'stdout': stdout_key,
+        'unread': True,
+    }
+
+    # Send initial information to database and create stdout file
+    if store_db:
+        response = table.put_item(
+            Item=payload
+        )
+    pprint(payload)
+
+    start = time.time()
+    while p.is_running():
+        if time.time() - start >= update_period:
+            payload['jobStatus'] = 'running'
+            date_modified, runtime = datetime_utils.get_current_times(start_date)
+            payload['runtime'] = runtime
+            payload['dateModified'] = date_modified
+            pprint(payload)
+
+            start = time.time()
+
+    payload['jobStatus'] = 'finished'
+
+    date_modified, runtime = datetime_utils.get_current_times(start_date)
+    payload['runtime'] = runtime
+    payload['dateModified'] = date_modified
+    if store_db:
+        response = table.update_item(
+            Key={
+                'userId': payload['userId'],
+                'jobId': payload['jobId'],
+            },
+            UpdateExpression=("SET dateModified = :dateModified, "
+                              + "jobStatus = :jobStatus, runtime = :runtime, "
+                              + "stdout = :stdout, unread = :unread"),
+            ExpressionAttributeValues={
+              ':dateModified': payload['dateModified'],
+              ':jobStatus': payload['jobStatus'],
+              ':runtime': payload['runtime'],
+              ':stdout': payload['stdout'],
+              ':unread': payload['unread'],
+            },
+            ReturnValues="ALL_NEW"
+        )
+    pprint(payload)
+
+    if send_email:
+        ses_client = aws_resources.ses_client(
+            aws_access_keys
+        )
+        email_notifications.send_completion_email(ses_client, payload)
