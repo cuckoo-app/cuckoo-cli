@@ -1,3 +1,5 @@
+import os
+
 attr = {
     'dev': {
         'region': 'us-east-2',
@@ -14,3 +16,7 @@ attr = {
         'bucket_name': 'cuckoo-cl-app-api-prod-stdoutbucket-535m0jfb4jd',
     }
 }
+
+cuckoo_dir = '%s/.cuckoo' % os.path.expanduser('~')
+user_config = '%s/config.json' % cuckoo_dir
+stage = 'dev'
