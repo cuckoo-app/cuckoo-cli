@@ -23,8 +23,8 @@ if __name__ == '__main__':
         bucket_name=bucket_name,
     )
 
-    import pprint
-    pprint.pprint(aws_credentials)
+    # import pprint
+    # pprint.pprint(aws_credentials)
 
     parser = argparse.ArgumentParser(
         description='Track completion of your jobs!'
