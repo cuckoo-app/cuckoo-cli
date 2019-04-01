@@ -15,7 +15,7 @@ import email_notifications
 
 
 CUCKOO_DIR = config.cuckoo_dir
-USER_CONFIG = config.user_config
+# USER_CONFIG = config.user_config_fn
 STAGE = config.stage
 
 

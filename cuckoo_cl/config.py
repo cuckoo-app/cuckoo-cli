@@ -18,5 +18,7 @@ attr = {
 }
 
 cuckoo_dir = '%s/.cuckoo' % os.path.expanduser('~')
-user_config = '%s/config.json' % cuckoo_dir
+user_config_fn = '%s/config' % cuckoo_dir
+user_tokens_fn = '%s/tokens' % cuckoo_dir
+
 stage = 'dev'

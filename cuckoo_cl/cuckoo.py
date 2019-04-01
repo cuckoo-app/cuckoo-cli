@@ -7,21 +7,12 @@ import track
 
 
 if __name__ == '__main__':
-    stage = 'dev'
+    stage = config.stage
     region = config.attr[stage]['region']
     user_pool_id = config.attr[stage]['user_pool_id']
     app_client_id = config.attr[stage]['app_client_id']
     identity_pool_id = config.attr[stage]['identity_pool_id']
     bucket_name = config.attr[stage]['bucket_name']
-
-    # Log in if user config isn't saved
-    aws_credentials = auth.interactive_login(
-        region=region,
-        user_pool_id=user_pool_id,
-        app_client_id=app_client_id,
-        identity_pool_id=identity_pool_id,
-        bucket_name=bucket_name,
-    )
 
     # import pprint
     # pprint.pprint(aws_credentials)
@@ -51,16 +42,32 @@ if __name__ == '__main__':
     elif args.command is None and args.pid is None:
         pass
     elif args.command:
+        # Grab all aws credentials; either from file or interactively
+        aws_credentials = auth.login(
+            region=region,
+            user_pool_id=user_pool_id,
+            app_client_id=app_client_id,
+            identity_pool_id=identity_pool_id,
+            bucket_name=bucket_name,
+        )
         joined_command = ' '.join(args.command)
-        print(joined_command)
+        print("Tracking command '%s'" % joined_command)
         track.track_new(joined_command,
                         aws_credentials,
                         store_stdout=False,
                         save_filename=None,
                         store_db=False,
-                        send_email=True)
+                        send_email=False)
     elif args.pid:
-        print(args.pid)
+        # Grab all aws credentials; either from file or interactively
+        aws_credentials = auth.login(
+            region=region,
+            user_pool_id=user_pool_id,
+            app_client_id=app_client_id,
+            identity_pool_id=identity_pool_id,
+            bucket_name=bucket_name,
+        )
+        print('Tracking existing process PID at: %s' % args.pid[0])
         track.track_existing(args.pid[0], aws_credentials)
     else:
         parser.error('Something went wrong!')
