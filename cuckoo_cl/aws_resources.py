@@ -1,4 +1,5 @@
 import boto3
+import config
 
 
 def ses_client(aws_access_keys,
@@ -25,22 +26,16 @@ def s3_resource(aws_access_keys,
 
 
 def idp_client(region='us-east-2'):
-    aws_access_key_id = 'AKIAIOSFODNN7EXAMPLE'
-    aws_secret_access_key = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
-
     idp_client = boto3.client('cognito-idp',
                               region_name=region,
-                              aws_access_key_id=aws_access_key_id,
-                              aws_secret_access_key=aws_secret_access_key)
+                              aws_access_key_id=config.dummy_access_key,
+                              aws_secret_access_key=config.dummy_secret_key)
     return idp_client
 
 
 def identity_client(region='us-east-2'):
-    aws_access_key_id = 'AKIAIOSFODNN7EXAMPLE'
-    aws_secret_access_key = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
-
     identity_client = boto3.client('cognito-identity',
                                    region_name=region,
-                                   aws_access_key_id=aws_access_key_id,
-                                   aws_secret_access_key=aws_secret_access_key)
+                                   aws_access_key_id=config.dummy_access_key,
+                                   aws_secret_access_key=config.dummy_secret_key)
     return identity_client

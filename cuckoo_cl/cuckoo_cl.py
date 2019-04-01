@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import os
+import errno
 import argparse
 
 import config
@@ -14,8 +16,11 @@ if __name__ == '__main__':
     identity_pool_id = config.attr[stage]['identity_pool_id']
     bucket_name = config.attr[stage]['bucket_name']
 
-    # import pprint
-    # pprint.pprint(aws_credentials)
+    try:
+        os.makedirs(config.cuckoo_dir)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
 
     parser = argparse.ArgumentParser(
         description='Track completion of your jobs!'

@@ -17,6 +17,9 @@ attr = {
     }
 }
 
+dummy_access_key = 'AKIAIOSFODNN7EXAMPLE'
+dummy_secret_key = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+
 cuckoo_dir = '%s/.cuckoo_cl' % os.path.expanduser('~')
 user_config_fn = '%s/config' % cuckoo_dir
 user_tokens_fn = '%s/tokens' % cuckoo_dir

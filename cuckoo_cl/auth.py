@@ -189,7 +189,9 @@ def login(region=config.attr[STAGE]['region'],
             cognito_session = warrant.Cognito(user_pool_id,
                                               app_client_id,
                                               user_pool_region=region,
-                                              username=username)
+                                              username=username,
+                                              access_key=config.dummy_access_key,
+                                              secret_key=config.dummy_secret_key)
             cognito_session.authenticate(password=password)
             user_tokens = get_user_tokens(cognito_session)
             save_json(user_tokens, USER_TOKENS_FN)
