@@ -2,4 +2,4 @@
 
 Command line interface for Cuckoo CL app.
 
-Standard use: `cuckoo YOUR_EXECUTABLE`.
+Standard use: `cuckoo_cl YOUR_EXECUTABLE`.
