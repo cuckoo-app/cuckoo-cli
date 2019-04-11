@@ -3,7 +3,7 @@ import sys
 import json
 import getpass
 import warrant
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoCredentialsError
 from jose.exceptions import JWTError
 import aws_resources
 import config
@@ -169,6 +169,9 @@ def login(region=config.attr[STAGE]['region'],
                 pass
             else:
                 raise e
+        except NoCredentialsError:
+            # Credentials not located or not accessible
+            pass
         except (KeyError, TypeError):
             # If username or machine are not defined in config
             pass
