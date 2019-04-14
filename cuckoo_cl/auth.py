@@ -151,7 +151,9 @@ def login(region=config.attr[STAGE]['region'],
                                               username=username,
                                               id_token=user_tokens['id_token'],
                                               refresh_token=user_tokens['refresh_token'],
-                                              access_token=user_tokens['access_token'])
+                                              access_token=user_tokens['access_token'],
+                                              access_key=config.dummy_access_key,
+                                              secret_key=config.dummy_secret_key)
             user_tokens = get_user_tokens(cognito_session)
             aws_credentials = get_all_aws_credentials(user_tokens,
                                                       region,
