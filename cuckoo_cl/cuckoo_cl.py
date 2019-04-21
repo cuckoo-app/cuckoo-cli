@@ -3,9 +3,14 @@ import os
 import errno
 import argparse
 
-import config
-import auth
-import track
+try:
+    from . import config
+    from . import auth
+    from . import track
+except:
+    import config
+    import auth
+    import track
 
 
 if __name__ == '__main__':
@@ -39,6 +44,21 @@ if __name__ == '__main__':
         type=int,
         help='PID of existing job to track',
     )
+    # Send email at job completion
+    parser.add_argument('-e',
+                        '--email',
+                        action='store_true',
+                        help='Send email at job exit')
+    # Save job info to database at checkpoints
+    parser.add_argument('-d',
+                        '--db',
+                        action='store_true',
+                        help='Save job info to database')
+    # Verbose
+    parser.add_argument('-v',
+                        '--verbose',
+                        action='store_true',
+                        help='Print payloads and all info')
 
     args = parser.parse_args()
 
@@ -61,8 +81,9 @@ if __name__ == '__main__':
                         aws_credentials,
                         store_stdout=False,
                         save_filename=None,
-                        store_db=False,
-                        send_email=False)
+                        store_db=args.db,
+                        send_email=args.email,
+                        verbose=args.verbose)
     elif args.pid:
         # Grab all aws credentials; either from file or interactively
         aws_credentials = auth.login(
@@ -73,6 +94,10 @@ if __name__ == '__main__':
             bucket_name=bucket_name,
         )
         print('Tracking existing process PID at: %s' % args.pid[0])
-        track.track_existing(args.pid[0], aws_credentials)
+        track.track_existing(args.pid[0],
+                             aws_credentials,
+                             store_db=args.db,
+                             send_email=args.email,
+                             verbose=args.verbose)
     else:
         parser.error('Something went wrong!')

@@ -5,8 +5,13 @@ import getpass
 import warrant
 from botocore.exceptions import ClientError, NoCredentialsError
 from jose.exceptions import JWTError
-import aws_resources
-import config
+
+try:
+    from . import aws_resources
+    from . import config
+except:
+    import aws_resources
+    import config
 
 
 CUCKOO_DIR = config.cuckoo_dir

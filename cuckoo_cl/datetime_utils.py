@@ -16,13 +16,14 @@ def get_current_times(start_date):
     # Start time in ISO 8601
     now_date = datetime.utcnow().isoformat()
 
-    diff = dateutil.parser.parse(now_date) - dateutil.parser.parse(start_date)
-    # print(diff, type(diff))
+    runtime = (
+        dateutil.parser.parse(now_date) - dateutil.parser.parse(start_date)
+    )
 
-    s = diff.total_seconds()
-    hours, remainder = divmod(s, 3600)
+    runtime_s = runtime.total_seconds()
+    hours, remainder = divmod(runtime_s, 3600)
     minutes, seconds = divmod(remainder, 60)
-    runtime = ('{:02}:{:02}:{:02}'
-               .format(int(hours), int(minutes), int(seconds)))
+    formatted_runtime = ('{:02}:{:02}:{:02}'
+                         .format(int(hours), int(minutes), int(seconds)))
 
-    return now_date, runtime
+    return now_date, formatted_runtime, runtime_s

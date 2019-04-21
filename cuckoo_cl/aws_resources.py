@@ -1,5 +1,9 @@
 import boto3
-import config
+
+try:
+    from . import config
+except:
+    import config
 
 
 def ses_client(aws_access_keys,
