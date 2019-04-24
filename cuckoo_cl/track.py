@@ -8,11 +8,13 @@ import uuid
 
 try:
     from . import config
+    from . import auth
     from . import aws_resources
     from . import datetime_utils
     from . import email_notifications
-except:
+except ImportError:
     import config
+    import auth
     import aws_resources
     import datetime_utils
     import email_notifications
@@ -133,6 +135,9 @@ def track_new(command,
     if runtime_s < 60:
         sys.exit('Job exited in less than a minute -- no need to track!')
 
+    # Make sure credentials are still valid
+    aws_credentials = auth.login()
+
     payload['runtime'] = runtime
     payload['dateModified'] = date_modified
     if store_stdout:
@@ -240,6 +245,9 @@ def track_existing(pid,
     print('')
     if runtime_s < 60:
         sys.exit('Job exited in less than a minute -- no need to track!')
+
+    # Make sure credentials are still valid
+    aws_credentials = auth.login()
 
     payload['runtime'] = runtime
     payload['dateModified'] = date_modified

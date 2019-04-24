@@ -68,13 +68,7 @@ if __name__ == '__main__':
         pass
     elif args.command:
         # Grab all aws credentials; either from file or interactively
-        aws_credentials = auth.login(
-            region=region,
-            user_pool_id=user_pool_id,
-            app_client_id=app_client_id,
-            identity_pool_id=identity_pool_id,
-            bucket_name=bucket_name,
-        )
+        aws_credentials = auth.login()
         joined_command = ' '.join(args.command)
         print("Tracking command '%s'" % joined_command)
         track.track_new(joined_command,
@@ -86,13 +80,7 @@ if __name__ == '__main__':
                         verbose=args.verbose)
     elif args.pid:
         # Grab all aws credentials; either from file or interactively
-        aws_credentials = auth.login(
-            region=region,
-            user_pool_id=user_pool_id,
-            app_client_id=app_client_id,
-            identity_pool_id=identity_pool_id,
-            bucket_name=bucket_name,
-        )
+        aws_credentials = auth.login()
         print('Tracking existing process PID at: %s' % args.pid[0])
         track.track_existing(args.pid[0],
                              aws_credentials,
